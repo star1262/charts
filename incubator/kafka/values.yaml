@@ -129,23 +129,54 @@ headless:
 
 ## External access.
 ##
+# external:
+#   enabled: false
+#   # type can be either NodePort or LoadBalancer
+#   type: NodePort
+#   # annotations:
+#   #  service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+#   dns:
+#     useInternal: false
+#     useExternal: true
+#   # If using external service type LoadBalancer and external dns, set distinct to true below.
+#   # This creates an A record for each statefulset pod/broker. You should then map the
+#   # A record of the broker to the EXTERNAL IP given by the LoadBalancer in your DNS server.
+#   distinct: false
+#   servicePort: 19092
+#   firstListenerPort: 31090
+#   domain: cluster.local
+#   loadBalancerIP: []
+#   init:
+#     image: "lwolf/kubectl_deployer"
+#     imageTag: "0.4"
+#     imagePullPolicy: "IfNotPresent"
+
+# # Annotation to be added to Kafka pods
+# podAnnotations: {}
+
+# # Labels to be added to Kafka pods
+# podLabels: {}
+#   # service: broker
+#   # team: developers
 external:
-  enabled: false
-  # type can be either NodePort or LoadBalancer
-  type: NodePort
+  type: LoadBalancer
   # annotations:
   #  service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
   dns:
     useInternal: false
-    useExternal: true
-  # If using external service type LoadBalancer and external dns, set distinct to true below.
-  # This creates an A record for each statefulset pod/broker. You should then map the
-  # A record of the broker to the EXTERNAL IP given by the LoadBalancer in your DNS server.
+    useExternal: false
+  # create an A record for each statefulset pod
   distinct: false
+  enabled: true
   servicePort: 19092
   firstListenerPort: 31090
   domain: cluster.local
-  loadBalancerIP: []
+  loadBalancerIP: # IP 3 assign
+    - 168.62.166.122
+    - 40.112.55.176
+    - 13.90.244.22
+
+  externalTrafficPolicy: Local
   init:
     image: "lwolf/kubectl_deployer"
     imageTag: "0.4"
@@ -154,12 +185,6 @@ external:
 # Annotation to be added to Kafka pods
 podAnnotations: {}
 
-# Labels to be added to Kafka pods
-podLabels: {}
-  # service: broker
-  # team: developers
-
-
 ## Configuration Overrides. Specify any Kafka settings you would like set on the StatefulSet
 ## here in map format, as defined in the official docs.
 ## ref: https://kafka.apache.org/documentation/#brokerconfigs
@@ -167,6 +192,29 @@ podLabels: {}
 configurationOverrides:
   "offsets.topic.replication.factor": 3
   "confluent.support.metrics.enable": false  # Disables confluent metric submission
+  "auto.leader.rebalance.enable": true
+  # "auto.create.topics.enable": true
+  # "controlled.shutdown.enable": trueooder0
+  # "controlled.shutdown.max.retries": 100
+
+  ## Options required for external access via NodePort
+  ## ref:
+  ## - http://kafka.apache.org/documentation/#security_configbroker
+  ## - https://cwiki.apache.org/confluence/display/KAFKA/KIP-103%3A+Separation+of+Internal+and+External+traffic
+  ##
+  ## Setting "advertised.listeners" here appends to "PLAINTEXT://${POD_IP}:9092,"
+  "advertised.listeners": EXTERNAL://${LOAD_BALANCER_IP}:31090
+  "listener.security.protocol.map": PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+  "listeners": PLAINTEXT://:9092,EXTERNAL://:31090
+  "inter.broker.listener.name": "PLAINTEXT"
+
+## Configuration Overrides. Specify any Kafka settings you would like set on the StatefulSet
+## here in map format, as defined in the official docs.
+## ref: https://kafka.apache.org/documentation/#brokerconfigs
+##
+# configurationOverrides:
+#   "offsets.topic.replication.factor": 3
+#   "confluent.support.metrics.enable": false  # Disables confluent metric submission
   # "auto.leader.rebalance.enable": true
   # "auto.create.topics.enable": true
   # "controlled.shutdown.enable": true
